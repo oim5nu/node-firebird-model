@@ -10,42 +10,48 @@ var Firebird = require('node-firebird');
 var createConnection = function(options) {
     var sql, check, id, tableName, database;
     var SQLModel = Backbone.Model.extend({
-        constructor: function() {
-            console.log("constructor called");
-            Firebird.attach(options, function(err, db) {
+        //constructor: function() {
+            //console.log("constructor called");
+       // },
+
+        initialize: function() {
+            console.log("Initialise called" );
+            /*Firebird.attach(options, function(err, db) {
                 if (err) {
                     console.log(err.message);
                     throw new Error(err.message);
                 } else {
-                    //db.query("select * from users", function(err, results, fields) {
-                    //    console.log("Database Query Result: 'User'", results);
-                    database = db;
-
-                    //db.detach();
-                    //});
+                    db.query("select * from users", function(err, results, fields) {
+                        console.log("Database Query Result: 'User'", results);
+                        db.detach();
+                    });
                 }
-            });
+            });*/
         },
 
-        initialize: function() {
-            console.log("Initialise called" );
-        },
-
-        setSQL: function(sql) {
-            for(var key in sql) {
-                if( typeof sql.key !== "function" ) {
-                    this.set(key, sql.key);
+        setSQL: function(data) {
+            for(var key in data) {
+                if( typeof data[key] !== "function" ) {
+                    this.set(key, data[key]);
                 }
             }
         },
         // Function for creating custom queries
         query: function(sql, callback) {
-            database.query(sql, function(err, results, fields) {
-                if (callback) {
-                    callback(err, results, fields);
+            Firebird.attach( options, function(err, db) {
+                if (err) {
+                    throw new Error(err.message);
+                } else {
+                    db.query(sql, function (err, results, fields) {
+                        if (callback) {
+                            callback(err, results, fields);
+                        }
+                        db.detach();
+                    });
+
                 }
             });
-        }/*,
+        },
         // Function returning one set of results and setting it to model it was used on
         read: function(id, callback) {
             var root = this;
@@ -62,26 +68,19 @@ var createConnection = function(options) {
             }
             var sql = " select * from " + tableName + " where id=" + id;
 
-            Firebird.attach(options,
-                function(err, db) {
-                    if (err) {
-                        //console.log(err.message);
-                        throw new Error(err.message);
-                    } else {
-                        db.query(sql,
-                            function (err, results, fields) {
-                                //console.log("database.query result 'staff'", results);
-                                //helpers.wrapJson(results, fields, jsondata);
-                                root.setSQL(results[0]);
-                                if( callback ) {
-                                    callback(err, results, fields );
-                                }
-                                db.detach();
-                            }
-                        );
-                    }
+            Firebird.attach(options, function(err, db) {
+                if (err) {
+                    throw new Error(err.message);
+                } else {
+                    db.query(sql, function (err, results, fields) {
+                        root.setSQL(results[0]);
+                        if( callback ) {
+                            callback(err, results, fields );
+                        }
+                        db.detach();
+                    });
                 }
-            );
+            });
         },
 
         // Function with set of methods to return records from database
@@ -131,99 +130,73 @@ var createConnection = function(options) {
                 //default method
                 case "all":
                     sql = "select " + fields + " from " + tableName + qcond;
-                    Firebird.attach(options,
-                        function(err, db) {
-                            if (err) {
-                                console.log(err.message);
-                                throw new Error(err.message);
-                            } else {
-                                db.query(sql,
-                                    function (err, results, fields) {
-                                        //console.log("database.query result 'staff'", results);
-                                        //helpers.wrapJson(results, fields, jsondata);
-                                        if( callback ) {
-                                            callback(err, results, fields );
-                                        }
-                                        db.detach();
-                                    }
-                                );
-                            }
+                    Firebird.attach(options, function(err, db) {
+                        if (err) {
+                            console.log(err.message);
+                            throw new Error(err.message);
+                        } else {
+                            db.query(sql, function (err, results, fields) {
+                                if( callback ) {
+                                    callback(err, results, fields );
+                                }
+                                db.detach();
+                            });
                         }
-                    );
+                    });
                     break;
                 case "count":
                     sql = "select count(*) as count_field from " + tableName + qcond;
-                    Firebird.attach(options,
-                        function(err, db) {
-                            if (err) {
-                                console.log(err.message);
-                                throw new Error(err.message);
-                            } else {
-                                db.query(sql,
-                                    function (err, results, fields) {
-                                        //console.log("database.query result 'staff'", results);
-                                        //helpers.wrapJson(results, fields, jsondata);
-                                        if( callback ) {
-                                            callback(err, results[0].count_field, fields );
-                                        }
-                                        db.detach();
-                                    }
-                                );
-                            }
+                    Firebird.attach(options, function(err, db) {
+                        if (err) {
+                            throw new Error(err.message);
+                        } else {
+                            db.query(sql, function (err, results, fields) {
+                                if (callback) {
+                                    callback(err, results[0]['COUNT_FIELD'], fields);
+                                }
+                                db.detach();
+                            });
                         }
-                    );
+                    });
                     break;
                 case "first":
                     sql = "select first(1) " + fields +" from " + tableName + qcond;
-                    Firebird.attach(options,
-                        function(err, db) {
-                            if (err) {
-                                console.log(err.message);
-                                throw new Error(err.message);
-                            } else {
-                                db.query(sql,
-                                    function (err, results, fields) {
-                                        //console.log("database.query result 'staff'", results);
-                                        //helpers.wrapJson(results, fields, jsondata);
-                                        if( callback ) {
-                                            callback(err, results[0], fields );
-                                        }
-                                        db.detach();
-                                    }
-                                );
-                            }
+                    Firebird.attach(options, function(err, db) {
+                        if (err) {
+                            console.log(err.message);
+                            throw new Error(err.message);
+                        } else {
+                            db.query(sql, function (err, results, fields) {
+                                if (callback) {
+                                    callback(err, results[0], fields);
+                                }
+                                db.detach();
+                            });
                         }
-                    );
+                    });
                     break;
                 case "field":
                     sql = "select " + fields +" from " + tableName + qcond;
-                    Firebird.attach(options,
-                        function(err, db) {
-                            if (err) {
-                                console.log(err.message);
-                                throw new Error(err.message);
-                            } else {
-                                db.query(sql,
-                                    function (err, results, fields) {
-                                        //console.log("database.query result 'staff'", results);
-                                        //helpers.wrapJson(results, fields, jsondata);
-                                        var key;
-                                        for ( key in results[0]) {
-                                            break;
-                                        }
-
-                                        if( callback ) {
-                                            callback(err, results[0].[key], fields );
-                                        }
-                                        db.detach();
-                                    }
-                                );
-                            }
+                    Firebird.attach(options, function(err, db) {
+                        if (err) {
+                            throw new Error(err.message);
+                        } else {
+                            db.query(sql, function (err, results, fields) {
+                                var key;
+                                for (key in results[0]) {
+                                    break;
+                                }
+                                if (callback) {
+                                    callback(err, results[0][key], fields);
+                                }
+                                db.detach();
+                            });
                         }
-                    );
+
+                    });
                     break;
             }
-        },
+        }/*,
         // Function saving your model attributes
         save: function(where, callback) {
             var tableName;
