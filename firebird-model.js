@@ -7,16 +7,21 @@ var Backbone = require('backbone');
 var Firebird = require('node-firebird');
 
 
-var createConnection = function(options) {
-    var sql, check, id, tableName, database;
+var defineModel = function(options, tableName) {
+    var sql, check, id, fields = [], values = [], fieldValues = [], fieldEqualValues = [];
     var SQLModel = Backbone.Model.extend({
+        //constructor happen before model set up
         //constructor: function() {
             //console.log("constructor called");
        // },
 
+        //Initialize happen before Model set up
         initialize: function() {
             console.log("Initialise called" );
-            /*Firebird.attach(options, function(err, db) {
+            if( tableName ) {
+                this.tableName = tableName;
+            }
+            /* Firebird.attach(options, function(err, db) {
                 if (err) {
                     console.log(err.message);
                     throw new Error(err.message);
@@ -122,8 +127,8 @@ var createConnection = function(options) {
                     qcond += " DESC";
                 }
             }
-            if( conditions.limit ) {
-                qcond += " LIMIT " + conditions.limit;
+            if( conditions.rows ) {
+                qcond += " rows " + conditions.range;
             }
 
             switch(method) {
@@ -184,19 +189,18 @@ var createConnection = function(options) {
                             db.query(sql, function (err, results, fields) {
                                 var key;
                                 for (key in results[0]) {
-                                    break;
-                                }
-                                if (callback) {
-                                    callback(err, results[0][key], fields);
+                                    if (callback) {
+                                        callback(err, results[0][key], fields);
+                                    }
+                                    //break;
                                 }
                                 db.detach();
                             });
                         }
-
                     });
                     break;
             }
-        }/*,
+        },
         // Function saving your model attributes
         save: function(where, callback) {
             var tableName;
@@ -208,97 +212,114 @@ var createConnection = function(options) {
             if( this.tableName ) {
                 tableName = this.tableName;
             } else {
-                tableName = this.tableName;
+                tableName = this.attributes.tableName;
             }
             if( where ) {
-                var id = null;
+                id = null;
                 if( this.has('id')) {
                     id = this.get('id');
                     delete this.attributes.id;
                 }
-                var sql = " update " + tableName + " set " + this.attributes + " where " + where;
+                var fieldValues = this.attributes;
+                var fields = Object.keys(fieldValues);
+                var fieldEqualValues = fields.map(function(key) {
+                    return key + " ='" + fieldValues[key] + "'";
+                });
+                sql = " update " + tableName + " set " + fieldEqualValues.join(",") + " where " + where.where;
                 if( id ) {
                     this.set('id', id);
                 }
-                var check = " select first(1) * from " + tableName + " where " + where;
-                Firebird.attach(options,
-                    function(err, db) {
+                var check = " select first(1) * from " + tableName + " where " + where.where;
+                Firebird.attach(options, function(err, db) {
+                    if (err) {
+                        throw new Error(err.message);
+                    } else {
+                        db.query(check, function (err, results, fields) {
+                            if (results[0]) {
+                                db.query(sql, function (err, result) {
+                                    if (callback) {
+                                        callback(err, result, db);
+                                    }
+                                    else {
+                                        db.detach();
+                                    }
+                                });
+                            } else {
+                                err = "ERROR: Record not found";
+                                if (callback) {
+                                    callback(err, results, db);
+                                }
+                                else {
+                                    db.detach();
+                                }
+                            }
+                            //db.detach();
+                        });
+                    }
+                });
+            } else { //without where
+                if( this.has('id') ) {
+                    id = this.get('id');
+                    delete this.attributes.id;
+
+                    fieldValues = this.attributes;
+                    fields = Object.keys(fieldValues);
+                    fieldEqualValues = fields.map(function(key) {
+                        return key + " ='" + fieldValues[key] + "'";
+                    });
+                    sql = "update " + tableName + " set " + fieldEqualValues.join(",") + " where id= " + id;
+                    this.set('id', id);
+                    check = " select first(1) * from " + tableName + " where id=" + id;
+                    Firebird.attach(options, function(err, db) {
                         if (err) {
                             console.log(err.message);
                             throw new Error(err.message);
                         } else {
-                            db.query(check,
-                                function (err, results, fields) {
-                                    if( results[0] ) {
-                                        db.query(sql, function(err, result) {
-                                            if(callback) {
-                                                callback(err, result, db);
-                                            }
-                                        });
-                                    } else {
-                                        err = "ERROR: Record not found";
+                            db.query(check, function (err, results, fields) {
+                                if (results[0]) {
+                                    db.query(sql, function (err, result) {
+                                        if (callback) {
+                                            callback(err, result, db);
+                                        }
+                                        else {
+                                            db.detach();
+                                        }
+                                    });
+                                } else {
+                                    err = "ERROR: Record not found";
+                                    if (callback) {
                                         callback(err, results, db);
                                     }
+                                    else {
+                                        db.detach();
+                                    }
+                                }
+                                //db.detach();
+                            });
+                        }
+                    });
+                } else { //Create new record
+                    fieldValues = this.attributes;
+                    fields = Object.keys(this.attributes);
+                    values = fields.map(function(key) {
+                            return "'" + fieldValues[key] + "'";
+                        });
 
+                    sql = "insert into " + tableName + " ( " + fields.join(",") + " ) values( " + values.join(",") + " )";
+                    Firebird.attach(options, function(err, db) {
+                        if (err) {
+                            throw new Error(err.message);
+                        } else {
+                            db.query(sql, function (err, results) {
+                                if( callback ) {
+                                    callback(err, results, db);
+                                }
+                                else {
                                     db.detach();
                                 }
-                            );
+                            });
                         }
-                    }
-                );
-            } else {
-                if( this.has('id') ) {
-                    id = this.get('id');
-                    delete this.attributes.id;
-                    sql = "update " + tableName + " set " + this.attributes + " where id= " + id;
-                    this.set('id', id);
-                    check = " select first(1) * from " + tableName + " where id=" + id;
-                    Firebird.attach(options,
-                        function(err, db) {
-                            if (err) {
-                                console.log(err.message);
-                                throw new Error(err.message);
-                            } else {
-                                db.query(check,
-                                    function (err, results, fields) {
-                                        if( results[0] ) {
-                                            db.query(sql, function(err, result) {
-                                                if(callback) {
-                                                    callback(err, result, db);
-                                                }
-                                            });
-                                        } else {
-                                            err = "ERROR: Record not found";
-                                            callback(err, results, db);
-                                        }
-                                        db.detach();
-                                    }
-                                );
-                            }
-                        }
-                    );
-                } else {
-                    //Create new record
-                    var q = "insert into " + tableName + " set " + this.attributes;
-                    Firebird.attach(options,
-                        function(err, db) {
-                            if (err) {
-                                console.log(err.message);
-                                throw new Error(err.message);
-                            } else {
-                                db.query(sql,
-                                    function (err, results, fields) {
-                                        //console.log("database.query result 'staff'", results);
-                                        //helpers.wrapJson(results, fields, jsondata);
-                                        if( callback ) {
-                                            callback(err, results[0], fields );
-                                        }
-                                        db.detach();
-                                    }
-                                );
-                            }
-                        }
-                    );
+                    });
                 }
             }
 
@@ -315,64 +336,75 @@ var createConnection = function(options) {
                 tableName = this.attributes.tableName;
             }
             if(where) {
-                var q = "delete from " + tableName + " where " + where;
-                var check = " select * from " + tableName + " where " + where;
+                sql = "delete from " + tableName + " where " + where.where;
+                var check = " select * from " + tableName + " where " + where.where;
                 Firebird.attach(options,
                     function(err, db) {
                         if (err) {
-                            console.log(err.message);
                             throw new Error(err.message);
                         } else {
-                            db.query(check,
-                                function (err, results, fields) {
-                                    //console.log("database.query result 'staff'", results);
-                                    //helpers.wrapJson(results, fields, jsondata);
-                                    if( results[0]) {
-                                        db.query(q, function(err, result) {
-                                            if(callback) {
-                                                callback(err, result, db);
-                                            }
-                                        });
-                                    } else {
-                                        err = "ERROR: Record not found";
-                                        callback(err, result, db);
+                            db.query(check, function (err, results, fields) {
+                                if (results[0]) {
+                                    db.query(sql, function (err, result) {
+                                        if (callback) {
+                                            callback(err, result, db);
+                                        }
+                                        else {
+                                            db.detach();
+                                        }
+                                    });
+                                } else {
+                                    err = "ERROR: Record not found";
+                                    if (callback) {
+                                        callback(err, results, db);
                                     }
-                                    db.detach();
+                                    else {
+                                        db.detach();
+                                    }
                                 }
-                            );
+                                //db.detach();
+                            });
                         }
                     }
                 );
             } else {
                 if(this.has('id')) {
-                    var q = "DELETE FROM "+tableName+" WHERE id="+this.attributes.id;
-                    var check = "SELECT * FROM "+tableName+" WHERE id="+this.attributes.id;
+                    sql = "DELETE FROM " + tableName + " WHERE id=" + this.attributes.id;
+                    check = "SELECT * FROM " + tableName +" WHERE id=" + this.attributes.id;
                     this.clear();
                     Firebird.attach(options, function(err, db) {
                         db.query(check, function (err, results, fields) {
                             if (results[0]) {
-                                db.query(q, function (err, result) {
+                                db.query(sql, function (err, result) {
                                     if (callback) {
                                         callback(err, result, db);
+                                    }
+                                    else {
+                                        db.detach();
                                     }
                                 });
                             } else {
                                 err = "ERROR: Record not found";
-                                callback(err, results, db);
+                                if (callback) {
+                                    callback(err, results, db);
+                                }
+                                else {
+                                    db.detach();
+                                }
                             }
                         });
                     });
                 } else {
-                    var err="ERROR: Model has no specified ID, delete aborted";
+                    var err = "ERROR: Model has no specified ID, delete aborted";
                     var result = null;
                     if(callback) {
                         callback(err, result);
                     }
                 }
             }
-        } */
+        }
     });
     return SQLModel;
 };
-exports.createConnection = createConnection;
+exports.defineModel = defineModel;
 
