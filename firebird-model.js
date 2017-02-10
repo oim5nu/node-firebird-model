@@ -305,7 +305,7 @@ var defineModel = function(options, tableName) {
                             return "'" + fieldValues[key] + "'";
                         });
 
-                    sql = "insert into " + tableName + " ( " + fields.join(",") + " ) values( " + values.join(",") + " )";
+                    sql = "insert into " + tableName + " ( " + fields.join(",") + " ) values( " + values.join(",") + " ) returning id";
                     Firebird.attach(options, function(err, db) {
                         if (err) {
                             throw new Error(err.message);
